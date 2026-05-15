@@ -113,7 +113,7 @@ def create_pdf(name, period, score, total, date_str, mc_results,
 # ---------------------------------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------------------------------
-st.set_page_config(page_title=MODULE_TITLE, layout="centered", page_icon="⚖️")
+st.set_page_config(page_title=MODULE_TITLE, layout="wide", page_icon="⚖️")
 
 # ---------------------------------------------------------------------------
 # CUSTOM CSS
@@ -121,7 +121,7 @@ st.set_page_config(page_title=MODULE_TITLE, layout="centered", page_icon="⚖️
 st.markdown("""
 <style>
 /* ── Global ── */
-section.main > div { max-width: 880px; }
+section.main > div { max-width: none; }
 
 /* ── Module header ── */
 .mod-header {
