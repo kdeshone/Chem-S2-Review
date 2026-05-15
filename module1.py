@@ -1,8 +1,21 @@
 import streamlit as st
-from fpdf import FPDF
+import io
 from datetime import datetime
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+)
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
 MODULE_TITLE = "Module 1: IS 3.1 — Balancing Equations"
+
+NAVY  = colors.HexColor("#1e3c72")
+GREEN = colors.HexColor("#27ae60")
+RED   = colors.HexColor("#c0392b")
+LTBLUE = colors.HexColor("#f0f5ff")
 
 
 # ---------------------------------------------------------------------------
@@ -10,104 +23,119 @@ MODULE_TITLE = "Module 1: IS 3.1 — Balancing Equations"
 # ---------------------------------------------------------------------------
 def create_pdf(name, period, score, total, date_str, mc_results,
                q1_correct, q2_correct, q3_correct):
-    pdf = FPDF()
-    pdf.add_page()
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=letter,
+                            leftMargin=0.75*inch, rightMargin=0.75*inch,
+                            topMargin=0.6*inch, bottomMargin=0.6*inch)
+    styles = getSampleStyleSheet()
+    story  = []
 
-    # ── Header bar ──────────────────────────────────────────────────────────
-    pdf.set_fill_color(30, 60, 114)
-    pdf.rect(0, 0, 210, 38, "F")
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Arial", "B", 17)
-    pdf.cell(0, 13, "Honors Chemistry — Semester 2 Review", ln=True, align="C")
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, MODULE_TITLE, ln=True, align="C")
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(6)
+    # ── Styles ──────────────────────────────────────────────────────────────
+    title_style = ParagraphStyle("title", parent=styles["Title"],
+                                 textColor=colors.white, fontSize=18,
+                                 spaceAfter=4, alignment=TA_CENTER)
+    sub_style   = ParagraphStyle("sub", parent=styles["Normal"],
+                                 textColor=colors.white, fontSize=12,
+                                 alignment=TA_CENTER, spaceAfter=0)
+    h2_style    = ParagraphStyle("h2", parent=styles["Heading2"],
+                                 textColor=NAVY, spaceBefore=10, spaceAfter=4)
+    body_style  = ParagraphStyle("body", parent=styles["Normal"],
+                                 fontSize=10, leading=14, spaceAfter=3)
+    ok_style    = ParagraphStyle("ok",  parent=styles["Normal"],
+                                 fontSize=10, textColor=GREEN, leading=13)
+    bad_style   = ParagraphStyle("bad", parent=styles["Normal"],
+                                 fontSize=10, textColor=RED, leading=13)
 
-    # ── Student info box ────────────────────────────────────────────────────
-    pdf.set_fill_color(240, 245, 255)
-    y0 = pdf.get_y()
-    pdf.rect(10, y0, 190, 32, "F")
-    pdf.set_font("Arial", size=11)
-    pdf.set_x(15)
-    pdf.cell(95, 10, f"Student: {name}", ln=False)
-    pdf.cell(95, 10, f"Period: {period}", ln=True)
-    pdf.set_x(15)
-    pdf.cell(95, 10, f"Date: {date_str}", ln=False)
-    pct = (score / total) * 100
+    # ── Header table ────────────────────────────────────────────────────────
+    pct   = (score / total) * 100
     grade = "A" if pct >= 90 else "B" if pct >= 80 else "C" if pct >= 70 else "D" if pct >= 60 else "F"
-    pdf.cell(95, 10, f"Letter Grade: {grade}", ln=True)
-    pdf.ln(6)
+
+    header_data = [[
+        Paragraph("Honors Chemistry — Semester 2 Review", title_style),
+    ], [
+        Paragraph(MODULE_TITLE, sub_style),
+    ]]
+    header_tbl = Table(header_data, colWidths=[7*inch])
+    header_tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), NAVY),
+        ("TOPPADDING",    (0,0), (-1,-1), 10),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 10),
+        ("LEFTPADDING",   (0,0), (-1,-1), 14),
+        ("RIGHTPADDING",  (0,0), (-1,-1), 14),
+        ("ROUNDEDCORNERS", (0,0), (-1,-1), [6,6,6,6]),
+    ]))
+    story.append(header_tbl)
+    story.append(Spacer(1, 10))
+
+    # ── Student info ────────────────────────────────────────────────────────
+    info_data = [
+        [Paragraph(f"<b>Student:</b> {name}", body_style),
+         Paragraph(f"<b>Period:</b> {period}", body_style)],
+        [Paragraph(f"<b>Date:</b> {date_str}", body_style),
+         Paragraph(f"<b>Letter Grade:</b> {grade}", body_style)],
+    ]
+    info_tbl = Table(info_data, colWidths=[3.5*inch, 3.5*inch])
+    info_tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), LTBLUE),
+        ("BOX",        (0,0), (-1,-1), 0.5, NAVY),
+        ("TOPPADDING",    (0,0), (-1,-1), 6),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+        ("LEFTPADDING",   (0,0), (-1,-1), 10),
+    ]))
+    story.append(info_tbl)
+    story.append(Spacer(1, 10))
 
     # ── Score banner ────────────────────────────────────────────────────────
-    pdf.set_fill_color(30, 60, 114)
-    pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Arial", "B", 15)
-    pdf.cell(0, 13, f"FINAL SCORE:  {score} / {total}   ({pct:.1f}%)", ln=True, align="C", fill=True)
-    pdf.set_text_color(0, 0, 0)
-    pdf.ln(7)
+    score_data = [[
+        Paragraph(f"FINAL SCORE:  {score} / {total}   ({pct:.1f}%)", title_style)
+    ]]
+    score_tbl = Table(score_data, colWidths=[7*inch])
+    score_tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,-1), NAVY),
+        ("TOPPADDING",    (0,0), (-1,-1), 10),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 10),
+    ]))
+    story.append(score_tbl)
+    story.append(Spacer(1, 12))
 
-    # ── Section breakdown ───────────────────────────────────────────────────
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "Score Breakdown:", ln=True)
-    pdf.set_font("Arial", size=11)
+    # ── Score breakdown ──────────────────────────────────────────────────────
+    story.append(Paragraph("Score Breakdown", h2_style))
     interactive_score = sum([q1_correct, q2_correct, q3_correct])
     mc_score = sum(1 for r in mc_results if r["correct"])
-    pdf.set_x(15)
-    pdf.cell(0, 8, f"  Interactive Balancing (Q1-3):  {interactive_score} / 3", ln=True)
-    pdf.set_x(15)
-    pdf.cell(0, 8, f"  Multiple Choice (Q4-20):       {mc_score} / 17", ln=True)
-    pdf.ln(5)
+    story.append(Paragraph(f"Interactive Balancing (Q1–3):  {interactive_score} / 3", body_style))
+    story.append(Paragraph(f"Multiple Choice (Q4–20):       {mc_score} / 17", body_style))
+    story.append(Spacer(1, 8))
 
-    # ── Q1–3 feedback ───────────────────────────────────────────────────────
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "Interactive Questions:", ln=True)
-    pdf.set_font("Arial", size=10)
-
+    # ── Interactive Q1–3 ────────────────────────────────────────────────────
+    story.append(Paragraph("Interactive Questions", h2_style))
     items = [
-        ("Q1 — Formation of Water",     q1_correct, "2H2 + O2 -> 2H2O"),
-        ("Q2 — Combustion of Methane",  q2_correct, "CH4 + 2O2 -> CO2 + 2H2O"),
-        ("Q3 — Reaction Type ID",       q3_correct, "Double Replacement & Decomposition"),
+        ("Q1 — Formation of Water",    q1_correct, "2H2 + O2 -> 2H2O"),
+        ("Q2 — Combustion of Methane", q2_correct, "CH4 + 2O2 -> CO2 + 2H2O"),
+        ("Q3 — Reaction Type ID",      q3_correct, "Double Replacement & Decomposition"),
     ]
     for label, correct, answer in items:
-        status = "CORRECT" if correct else "INCORRECT"
         if correct:
-            pdf.set_text_color(39, 174, 96)
+            story.append(Paragraph(f"✔  CORRECT — {label}", ok_style))
         else:
-            pdf.set_text_color(192, 57, 43)
-        pdf.set_font("Arial", "B", 10)
-        pdf.set_x(15)
-        pdf.cell(35, 7, f"  {status}", ln=False)
-        pdf.set_text_color(0, 0, 0)
-        pdf.set_font("Arial", size=10)
-        suffix = "" if correct else f"  |  Correct: {answer}"
-        pdf.cell(0, 7, f"{label}{suffix}", ln=True)
+            story.append(Paragraph(f"✘  INCORRECT — {label}  |  Correct: {answer}", bad_style))
+    story.append(Spacer(1, 8))
 
-    pdf.ln(4)
-
-    # ── MC feedback ─────────────────────────────────────────────────────────
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 8, "Multiple Choice Questions (Q4–20):", ln=True)
+    # ── MC Q4–20 ─────────────────────────────────────────────────────────────
+    story.append(Paragraph("Multiple Choice Questions (Q4–20)", h2_style))
 
     for i, result in enumerate(mc_results):
         qnum = i + 4
         if result["correct"]:
-            pdf.set_text_color(39, 174, 96)
-            pdf.set_font("Arial", "B", 10)
-            pdf.set_x(15)
-            pdf.cell(30, 7, f"  Q{qnum}: CORRECT", ln=True)
+            story.append(Paragraph(f"✔  Q{qnum}: CORRECT", ok_style))
         else:
-            pdf.set_text_color(192, 57, 43)
-            pdf.set_font("Arial", "B", 10)
-            pdf.set_x(15)
-            pdf.cell(30, 7, f"  Q{qnum}: INCORRECT", ln=False)
-            pdf.set_text_color(80, 80, 80)
-            pdf.set_font("Arial", size=9)
-            chosen = result["chosen"] if result["chosen"] else "No answer"
-            pdf.cell(0, 7, f"  You: {chosen}   |   Correct: {result['answer']}", ln=True)
-        pdf.set_text_color(0, 0, 0)
+            chosen = result["chosen"] if result["chosen"] else "No answer selected"
+            story.append(Paragraph(
+                f"✘  Q{qnum}: INCORRECT — You chose: {chosen}  |  Correct: {result['answer']}",
+                bad_style
+            ))
 
-    return pdf.output(dest="S").encode("latin-1")
+    doc.build(story)
+    return buf.getvalue()
 
 
 # ---------------------------------------------------------------------------
